@@ -1,108 +1,79 @@
-const fs = require("fs").promises;
-require("colors");
-const path = require("path");
+import fs from "fs/promises";
+import path from "path";
+import { nanoid } from "nanoid";
 
-const contactsPath = path.join("./db", "contacts.json");
-const contactsDataBase = require("./db/contacts.json");
+const contactsPath = path.resolve("db", "contacts.json");
 
-function parseContacts(data) {
-  return JSON.parse(data.toString());
-}
-
-function listContacts() {
-  fs.readFile(contactsPath)
-    .then((data) => {
-      return parseContacts(data);
-    })
-    .then((list) => {
-      return [...list].sort((a, b) => {
-        return a.name.localeCompare(b.name);
-      });
-    })
-    .then((result) => console.table(result))
-    .catch((error) => console.log(error.message));
-}
-
-function getContactById(contactId) {
-  fs.readFile(contactsPath)
-    .then((data) => {
-      const contacts = parseContacts(data);
-      return contacts;
-    })
-    .then((contacts) => {
-      const contactsFilter = contacts.filter(
-        (contact) => contact.id === contactId
-      );
-      if (contactsFilter.length > 0) {
-        console.table(contactsFilter);
-        return;
-      }
-      console.log(`There is no contact with the id: ${contactId}.`.red);
-    })
-    .catch((err) => console.log(err.message));
-}
-
-function removeContact(contactId) {
-  fs.readFile(contactsPath)
-    .then((data) => {
-      const contacts = parseContacts(data);
-      return contacts;
-    })
-    .then((contacts) => {
-      const contactIndex = contacts.findIndex(
-        (contact) => contact.id === contactId
-      );
-      if (contactIndex !== -1) {
-        contacts.splice(contactIndex, 1);
-
-        fs.writeFile(contactsPath, JSON.stringify(contacts), (error) => {
-          if (error) {
-            console.log(error.message);
-            return;
-          }
-        });
-        console.log(
-          `Contact with the id ${contactId} has been removed.`
-            .green
-        );
-      } else {
-        console.log(`There is no contact with the id: ${contactId}.`.red);
-      }
-    })
-    .catch((error) => console.log(error.message));
-}
-
-function addContact(name, email, phone) {
-  const contact = {
-    id: (
-      Math.floor(Math.random() * 100000) + contactsDataBase.length
-    ).toString(),
-    name,
-    email,
-    phone,
-  };
-
-  if (name === undefined || email === undefined || phone === undefined) {
-    console.log("Please set all arguments (name, email, phone) to add contact".red);
-    return;
+const updateContacts = async (contacts) => {
+  try {
+    await fs.writeFile(contactsPath, JSON.stringify(contacts, null, 2));
+  } catch (error) {
+    console.log(error);
   }
+};
 
-  contactsDataBase.push(contact);
+const getContactsList = async () => {
+  try {
+    const data = await fs.readFile(contactsPath);
+    const contacts = JSON.parse(data);
+    return contacts;
+  } catch (error) {
+    console.log(error);
+  }
+};
 
-  const contactsUpdate = JSON.stringify(contactsDataBase);
+const getContactById = async (contactId) => {
+  try {
+    const contacts = await getContactsList();
+    const contact = contacts.find(({id}) => id === contactId);
+    if(!contact) return null; 
+    return contact;
+  } catch (error) {
+    console.log(error);
+  }
+};
 
-  fs.writeFile(contactsPath, contactsUpdate, (error) => {
-    if (error) {
-      console.log("Oops, something went wrong:".red, error.message);
-      return;
-    }
-  });
-  console.log(`${name} has been added to your contacts`.green);
-}
+const addContact = async(name, email, phone) => {
+  try {
+    const newContact = {id: nanoid(), name, email, phone};
+    const contacts = await getContactsList();
+    const changedList = [newContact, ...contacts];
+    await updateContacts(changedList);
+    return newContact;
+  } catch (error) {
+    console.log(error);
+  }
+};
 
-module.exports = {
-  listContacts,
+const removeContact = async(contactId) => {
+  try {
+    const contacts = await getContactsList();
+    const index = contacts.findIndex(({id}) => id === contactId);
+    if(index === -1) return null;
+    const [removedContact] = contacts.splice(index,1)
+    await updateContacts(contacts);
+    return removedContact;
+  } catch (error) {
+    console.log(error);
+  }
+};
+
+const updateContactById = async (id, name, email, phone) => {
+  try {
+    const contacts = await getContactsList();
+    const index = contacts.findIndex(contact => contact.id === id);
+    index === -1 ? null : contacts[index] = {id, name, email, phone};
+    await updateContacts(contacts);
+    return contacts[index];
+  } catch (error) {
+    console.log(error);
+  }
+};
+
+export default {
+  getContactsList,
   getContactById,
   removeContact,
   addContact,
+  updateContactById,
 };
